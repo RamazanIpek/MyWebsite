@@ -1,6 +1,6 @@
 // src/components/games/AirHockey.tsx
 "use client";
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, forwardRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Physics, useBox, usePlane, useSphere } from '@react-three/cannon';
 import { OrbitControls, Text } from '@react-three/drei';
@@ -78,7 +78,11 @@ function Walls() {
 }
 
 // Hava hokeyi topu
-function Puck({ onScore }) {
+interface PuckProps {
+  onScore: (scorer: 'player' | 'cpu') => void;
+}
+
+const Puck = forwardRef<[number, number, number], PuckProps>(({ onScore }, ref) => {
   const [puckRef, api] = useSphere(() => ({
     mass: 1,
     position: [0, 0.2, 0],
@@ -87,14 +91,17 @@ function Puck({ onScore }) {
     userData: { name: 'puck' }
   }));
   
-  const velocity = useRef([0, 0, 0]);
-  const position = useRef([0, 0, 0]);
+  const velocity = useRef<[number, number, number]>([0, 0, 0]);
+  const position = useRef<[number, number, number]>([0, 0, 0]);
   
   // Fizik hesaplamaları
   useEffect(() => {
-    api.velocity.subscribe((v) => (velocity.current = v));
+    api.velocity.subscribe((v) => {
+      velocity.current = [v[0], v[1], v[2]];
+    });
+    
     api.position.subscribe((p) => {
-      position.current = p;
+      position.current = [p[0], p[1], p[2]];
       
       // Kaleler
       if (p[0] > -0.5 && p[0] < 0.5) {
@@ -118,16 +125,28 @@ function Puck({ onScore }) {
     api.angularVelocity.set(0, 0, 0);
   };
 
+  // Forward ref'i position.current'a ayarla
+  useEffect(() => {
+    if (ref) {
+      // @ts-ignore - Bu satirda TypeScript'e ref.current'i kullanmak istediğimizi söylüyoruz
+      ref.current = position.current;
+    }
+  }, [ref, position.current]);
+
   return (
     <mesh ref={puckRef} castShadow receiveShadow>
       <cylinderGeometry args={[0.3, 0.3, 0.1, 32]} />
       <meshStandardMaterial color="black" />
     </mesh>
   );
-}
+});
 
 // Oyuncu vurucu
-function PlayerPaddle({ position = [0, 0, 3] }) {
+interface PlayerPaddleProps {
+  position?: [number, number, number];
+}
+
+function PlayerPaddle({ position = [0, 0, 3] }: PlayerPaddleProps) {
   const { viewport } = useThree();
   const [paddleRef, api] = useSphere(() => ({
     mass: 1,
@@ -139,7 +158,7 @@ function PlayerPaddle({ position = [0, 0, 3] }) {
   
   // Mouse takibi
   useEffect(() => {
-    const handleMouseMove = (e) => {
+    const handleMouseMove = (e: MouseEvent) => {
       // Ekran koordinatlarını [-halfWidth, halfWidth] ve [-halfHeight, halfHeight] aralığına çevir
       const x = (e.clientX / window.innerWidth) * 2 - 1;
       const y = -((e.clientY / window.innerHeight) * 2 - 1);
@@ -169,7 +188,11 @@ function PlayerPaddle({ position = [0, 0, 3] }) {
 }
 
 // CPU vurucu
-function CPUPaddle({ puckPosition }) {
+interface CPUPaddleProps {
+  puckPosition: React.RefObject<[number, number, number]>;
+}
+
+function CPUPaddle({ puckPosition }: CPUPaddleProps) {
   const [paddleRef, api] = useSphere(() => ({
     mass: 1,
     position: [0, 0.2, -3],
@@ -233,7 +256,12 @@ function Goals() {
 }
 
 // Skor paneli
-function ScoreBoard({ playerScore, cpuScore }) {
+interface ScoreBoardProps {
+  playerScore: number;
+  cpuScore: number;
+}
+
+function ScoreBoard({ playerScore, cpuScore }: ScoreBoardProps) {
   return (
     <group position={[0, 2, 0]}>
       <Text
@@ -273,9 +301,9 @@ function ScoreBoard({ playerScore, cpuScore }) {
 export default function AirHockey() {
   const [playerScore, setPlayerScore] = useState(0);
   const [cpuScore, setCPUScore] = useState(0);
-  const puckPositionRef = useRef([0, 0, 0]);
+  const puckPositionRef = useRef<[number, number, number]>([0, 0, 0]);
   
-  const handleScore = (scorer) => {
+  const handleScore = (scorer: 'player' | 'cpu') => {
     if (scorer === 'player') {
       setPlayerScore(prev => prev + 1);
     } else {

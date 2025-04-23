@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Physics, useBox, usePlane } from '@react-three/cannon';
 import { OrbitControls, PerspectiveCamera, Text } from '@react-three/drei';
+import type { PerspectiveCamera as PerspectiveCameraType } from 'three';
 
 // Zemin ve Yol
 function Ground() {
@@ -56,8 +57,13 @@ function Ground() {
   );
 }
 
+// Engeller için props tanımı
+interface ObstaclesProps {
+  onCollision: (e: any) => void;
+}
+
 // Engeller
-function Obstacles({ onCollision }) {
+function Obstacles({ onCollision }: ObstaclesProps) {
   const obstacles = [];
   const obstacleCount = 15;
   
@@ -73,8 +79,8 @@ function Obstacles({ onCollision }) {
       // Kutu engel
       const [boxRef] = useBox(() => ({
         mass: 1,
-        position: [xPosition, 0.5, zPosition],
-        args: [1, 1, 1],
+        position: [xPosition, 0.5, zPosition] as [number, number, number],
+        args: [1, 1, 1] as [number, number, number],
         userData: { id: 'obstacle' },
         onCollide: onCollision
       }));
@@ -89,8 +95,8 @@ function Obstacles({ onCollision }) {
       // Silindir engel (variller)
       const [cylinderRef] = useBox(() => ({
         mass: 1,
-        position: [xPosition, 0.5, zPosition],
-        args: [1, 1, 1],
+        position: [xPosition, 0.5, zPosition] as [number, number, number],
+        args: [1, 1, 1] as [number, number, number],
         userData: { id: 'obstacle' },
         onCollide: onCollision
       }));
@@ -107,23 +113,41 @@ function Obstacles({ onCollision }) {
   return <>{obstacles}</>;
 }
 
+// Kontroller için interface
+interface ControlsState {
+  forward: boolean;
+  backward: boolean;
+  left: boolean;
+  right: boolean;
+}
+
+// Car için props
+interface CarProps {
+  controls: ControlsState;
+}
+
 // Araba
-function Car({ controls }) {
+function Car({ controls }: CarProps) {
   const [carRef, api] = useBox(() => ({
     mass: 500,
-    position: [0, 0.5, 0],
-    args: [2, 1, 4],
+    position: [0, 0.5, 0] as [number, number, number],
+    args: [2, 1, 4] as [number, number, number],
     userData: { id: 'car' },
   }));
   
-  const speed = useRef(0);
-  const position = useRef([0, 0.5, 0]);
-  const rotation = useRef([0, 0, 0]);
+  const speed = useRef<number>(0);
+  const position = useRef<[number, number, number]>([0, 0.5, 0]);
+  const rotation = useRef<[number, number, number]>([0, 0, 0]);
   
   // Fizik güncellemeleri
   useEffect(() => {
-    const unsubPosition = api.position.subscribe(v => position.current = v);
-    const unsubRotation = api.rotation.subscribe(v => rotation.current = v);
+    const unsubPosition = api.position.subscribe(v => {
+      position.current = [v[0], v[1], v[2]];
+    });
+    
+    const unsubRotation = api.rotation.subscribe(v => {
+      rotation.current = [v[0], v[1], v[2]];
+    });
     
     return () => {
       unsubPosition();
@@ -153,7 +177,7 @@ function Car({ controls }) {
     }
     
     // Pozisyon güncelleme
-    const direction = [
+    const direction: [number, number, number] = [
       Math.sin(rotationY) * speed.current,
       0,
       Math.cos(rotationY) * speed.current
@@ -194,28 +218,37 @@ function Car({ controls }) {
       
       {/* Tekerlekler */}
       <mesh castShadow position={[1, 0.3, 1.5]}>
-        <cylinderGeometry args={[0.4, 0.4, 0.3, 16]} rotation={[Math.PI / 2, 0, 0]} />
+        <cylinderGeometry args={[0.4, 0.4, 0.3, 16]} />
         <meshStandardMaterial color="black" />
+        <group rotation={[Math.PI / 2, 0, 0]} />
       </mesh>
       <mesh castShadow position={[-1, 0.3, 1.5]}>
-        <cylinderGeometry args={[0.4, 0.4, 0.3, 16]} rotation={[Math.PI / 2, 0, 0]} />
+        <cylinderGeometry args={[0.4, 0.4, 0.3, 16]} />
         <meshStandardMaterial color="black" />
+        <group rotation={[Math.PI / 2, 0, 0]} />
       </mesh>
       <mesh castShadow position={[1, 0.3, -1.5]}>
-        <cylinderGeometry args={[0.4, 0.4, 0.3, 16]} rotation={[Math.PI / 2, 0, 0]} />
+        <cylinderGeometry args={[0.4, 0.4, 0.3, 16]} />
         <meshStandardMaterial color="black" />
+        <group rotation={[Math.PI / 2, 0, 0]} />
       </mesh>
       <mesh castShadow position={[-1, 0.3, -1.5]}>
-        <cylinderGeometry args={[0.4, 0.4, 0.3, 16]} rotation={[Math.PI / 2, 0, 0]} />
+        <cylinderGeometry args={[0.4, 0.4, 0.3, 16]} />
         <meshStandardMaterial color="black" />
+        <group rotation={[Math.PI / 2, 0, 0]} />
       </mesh>
     </group>
   );
 }
 
+// Takip kamerası prop interface
+interface FollowCameraProps {
+  position: React.MutableRefObject<[number, number, number]>;
+}
+
 // Takip kamerası
-function FollowCamera({ position }) {
-  const cameraRef = useRef();
+function FollowCamera({ position }: FollowCameraProps) {
+  const cameraRef = useRef<PerspectiveCameraType>(null);
   const { camera } = useThree();
   
   useFrame(() => {
@@ -229,8 +262,14 @@ function FollowCamera({ position }) {
   return <PerspectiveCamera ref={cameraRef} makeDefault position={[0, 5, 10]} />;
 }
 
+// Oyun arayüzü prop interface
+interface GameInterfaceProps {
+  score: number;
+  gameOver: boolean;
+}
+
 // Oyun arayüzü
-function GameInterface({ score, gameOver }) {
+function GameInterface({ score, gameOver }: GameInterfaceProps) {
   return (
     <group position={[0, 0, -5]}>
       {gameOver ? (
@@ -271,16 +310,16 @@ function GameInterface({ score, gameOver }) {
 
 // Ana oyun bileşeni
 export default function CarGame() {
-  const [score, setScore] = useState(0);
-  const [gameOver, setGameOver] = useState(false);
-  const [controls, setControls] = useState({
+  const [score, setScore] = useState<number>(0);
+  const [gameOver, setGameOver] = useState<boolean>(false);
+  const [controls, setControls] = useState<ControlsState>({
     forward: false,
     backward: false,
     left: false,
     right: false
   });
   
-  const carPosition = useRef([0, 0.5, 0]);
+  const carPosition = useRef<[number, number, number]>([0, 0.5, 0]);
   
   // Skor artırma
   useEffect(() => {
@@ -302,7 +341,7 @@ export default function CarGame() {
   
   // Klavye kontrolleri
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case 'ArrowUp':
         case 'w':
@@ -337,7 +376,7 @@ export default function CarGame() {
       }
     };
     
-    const handleKeyUp = (e) => {
+    const handleKeyUp = (e: KeyboardEvent) => {
       switch (e.key) {
         case 'ArrowUp':
         case 'w':
@@ -393,7 +432,7 @@ export default function CarGame() {
           }}
         >
           <Ground />
-          <Car controls={controls} ref={carPosition} />
+          <Car controls={controls} />
           {!gameOver && <Obstacles onCollision={handleCollision} />}
         </Physics>
         

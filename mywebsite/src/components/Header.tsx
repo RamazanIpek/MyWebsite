@@ -1,12 +1,13 @@
 // src/components/Header.tsx
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, MutableRefObject } from 'react';
 import Link from 'next/link';
 
+// Update the interface to match the types from page.tsx
 interface HeaderProps {
   activeSection: string;
   sectionRefs: {
-    [key: string]: React.RefObject<HTMLElement>;
+    [key: string]: MutableRefObject<HTMLDivElement | null>;
   };
 }
 
@@ -27,7 +28,7 @@ export default function Header({ activeSection, sectionRefs }: HeaderProps) {
   // Bölümlere smooth scroll için
   const scrollToSection = (sectionId: string) => {
     setIsMobileMenuOpen(false);
-    sectionRefs[sectionId].current?.scrollIntoView({ behavior: 'smooth' });
+    sectionRefs[sectionId]?.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (

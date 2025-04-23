@@ -21,8 +21,15 @@ function Ground() {
   );
 }
 
+// Tip tanımlamaları için interface
+interface BallProps {
+  position?: [number, number, number];
+  onGoal: () => void;
+  onMiss: () => void;
+}
+
 // Futbol topu
-function Ball({ position = [0, 1, 10], onGoal, onMiss }) {
+function Ball({ position = [0, 1, 10], onGoal, onMiss }: BallProps) {
   const [ballRef, api] = useSphere(() => ({
     mass: 1,
     position,
@@ -59,28 +66,31 @@ function Ball({ position = [0, 1, 10], onGoal, onMiss }) {
   };
   
   // Mouse ile şut kontrolü
-  const ballPosition = useRef([0, 0, 0]);
+  const ballPosition = useRef<[number, number, number]>([0, 0, 0]);
   const isDragging = useRef(false);
-  const dragStart = useRef([0, 0, 0]);
+  const dragStart = useRef<[number, number, number]>([0, 0, 0]);
   const { viewport } = useThree();
   
   useEffect(() => {
-    api.position.subscribe(p => ballPosition.current = p);
+    const unsubscribe = api.position.subscribe((p) => {
+      ballPosition.current = [p[0], p[1], p[2]];
+    });
+    return unsubscribe;
   }, [api]);
   
   // Mouse eventleri
   useEffect(() => {
-    const handleMouseDown = (e) => {
+    const handleMouseDown = (e: MouseEvent) => {
       if (ballPosition.current[2] > 9) {  // Sadece başlangıç pozisyonundayken
         isDragging.current = true;
-        dragStart.current = [e.clientX, e.clientY];
+        dragStart.current = [e.clientX, e.clientY, 0];
       }
     };
     
-    const handleMouseUp = (e) => {
+    const handleMouseUp = (e: MouseEvent) => {
       if (isDragging.current) {
-        const dragEnd = [e.clientX, e.clientY];
-        const dragVector = [
+        const dragEnd: [number, number, number] = [e.clientX, e.clientY, 0];
+        const dragVector: [number, number, number] = [
           (dragStart.current[0] - dragEnd[0]) / 100,
           0.5,  // Yukarı kuvvet
           (dragStart.current[1] - dragEnd[1]) / 100
@@ -93,14 +103,14 @@ function Ball({ position = [0, 1, 10], onGoal, onMiss }) {
           maxForce
         );
         
-        const normalizedVector = [
+        const normalizedVector: [number, number, number] = [
           (dragVector[0] / Math.sqrt(dragVector[0] ** 2 + dragVector[2] ** 2)) * force,
           dragVector[1] * force,
           (dragVector[2] / Math.sqrt(dragVector[0] ** 2 + dragVector[2] ** 2)) * force
         ];
         
         // Şut at
-        api.velocity.set(...normalizedVector);
+        api.velocity.set(normalizedVector[0], normalizedVector[1], normalizedVector[2]);
         isDragging.current = false;
       }
     };
@@ -241,8 +251,14 @@ function Goal() {
   );
 }
 
+// Interface tanımlamaları ekleyelim
+interface ScoreDisplayProps {
+  score: number;
+  attempts: number;
+}
+
 // Skor paneli
-function ScoreDisplay({ score, attempts }) {
+function ScoreDisplay({ score, attempts }: ScoreDisplayProps) {
   return (
     <group position={[0, 6, 0]}>
       <Text 
@@ -258,8 +274,13 @@ function ScoreDisplay({ score, attempts }) {
   );
 }
 
+// Talimatlar için interface
+interface InstructionsProps {
+  isDragging: boolean;
+}
+
 // Talimatlar
-function Instructions({ isDragging }) {
+function Instructions({ isDragging }: InstructionsProps) {
   return (
     <group position={[0, 4, 10]}>
       <Text
@@ -277,9 +298,9 @@ function Instructions({ isDragging }) {
 
 // Ana oyun bileşeni
 export default function SoccerGame() {
-  const [score, setScore] = useState(0);
-  const [attempts, setAttempts] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
+  const [score, setScore] = useState<number>(0);
+  const [attempts, setAttempts] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
   
   const handleGoal = () => {
     setScore(score + 1);

@@ -1,6 +1,6 @@
 // src/app/page.tsx
 "use client";
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, MutableRefObject } from 'react';
 import dynamic from 'next/dynamic';
 import Header from '@/components/Header';
 import About from '@/components/About';
@@ -10,6 +10,11 @@ import Blog from '@/components/Blog';
 import YouTube from '@/components/YouTube';
 import Contact from '@/components/Contact';
 
+// Bir section ref map türü tanımlayalım
+type SectionName = 'home' | 'about' | 'skills' | 'projects' | 'games' | 'blog' | 'youtube' | 'contact';
+type SectionRefs = {
+  [key in SectionName]: MutableRefObject<HTMLDivElement | null>;
+};
 
 // 3D oyunları dinamik olarak yükleyelim
 const AirHockeyGame = dynamic(() => import('@/components/games/AirHockey'), { 
@@ -41,16 +46,18 @@ const CarGame = dynamic(() => import('@/components/games/CarGame'), {
 });
 
 export default function HomePage() {
-  const [activeSection, setActiveSection] = useState('home');
-  const sectionRefs = {
-    home: useRef(null),
-    about: useRef(null),
-    skills: useRef(null),
-    projects: useRef(null),
-    games: useRef(null),
-    blog: useRef(null),
-    youtube: useRef(null),
-    contact: useRef(null)
+  const [activeSection, setActiveSection] = useState<SectionName>('home');
+  
+  // Referansları doğru tiplerle oluşturalım
+  const sectionRefs: SectionRefs = {
+    home: useRef<HTMLDivElement>(null),
+    about: useRef<HTMLDivElement>(null),
+    skills: useRef<HTMLDivElement>(null),
+    projects: useRef<HTMLDivElement>(null),
+    games: useRef<HTMLDivElement>(null),
+    blog: useRef<HTMLDivElement>(null),
+    youtube: useRef<HTMLDivElement>(null),
+    contact: useRef<HTMLDivElement>(null)
   };
 
   // Scroll pozisyonuna göre aktif bölümü belirleyelim
@@ -58,9 +65,10 @@ export default function HomePage() {
     const handleScroll = () => {
       const scrollPosition = window.scrollY + 200;
 
-      for (const section in sectionRefs) {
-        const element = sectionRefs[section].current;
-        if (!element) continue;
+      // Object.entries ile güvenli bir şekilde objeyi döngüye alalım
+      Object.entries(sectionRefs).forEach(([section, ref]) => {
+        const element = ref.current;
+        if (!element) return;
 
         const offsetTop = element.offsetTop;
         const offsetHeight = element.offsetHeight;
@@ -69,14 +77,22 @@ export default function HomePage() {
           scrollPosition >= offsetTop &&
           scrollPosition < offsetTop + offsetHeight
         ) {
-          setActiveSection(section);
+          setActiveSection(section as SectionName);
         }
-      }
+      });
     };
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  // Null kontrolü ile güvenli bir scrollIntoView fonksiyonu
+  const scrollToSection = (sectionName: SectionName) => {
+    const section = sectionRefs[sectionName].current;
+    if (section) {
+      section.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
     <div className="bg-gradient-to-b from-gray-900 to-black text-white">
@@ -84,7 +100,7 @@ export default function HomePage() {
       
       {/* Hero Section */}
       <section 
-        ref={sectionRefs.home} 
+        ref={sectionRefs.home}
         id="home" 
         className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
       >
@@ -96,7 +112,7 @@ export default function HomePage() {
             VR & Mobil Uygulama Geliştirici | İçerik Üreticisi
           </p>
           <button 
-            onClick={() => sectionRefs.about.current.scrollIntoView({ behavior: 'smooth' })}
+            onClick={() => scrollToSection('about')}
             className="px-8 py-3 border border-purple-500 rounded-full text-white hover:bg-purple-500 transition duration-300"
           >
             Keşfet
@@ -109,7 +125,7 @@ export default function HomePage() {
 
       {/* About Section */}
       <section 
-        ref={sectionRefs.about} 
+        ref={sectionRefs.about}
         id="about" 
         className="min-h-screen py-20 px-4 md:px-8"
       >
@@ -118,7 +134,7 @@ export default function HomePage() {
 
       {/* Skills Section */}
       <section 
-        ref={sectionRefs.skills} 
+        ref={sectionRefs.skills}
         id="skills" 
         className="min-h-screen py-20 px-4 md:px-8 bg-black/30"
       >
@@ -127,7 +143,7 @@ export default function HomePage() {
 
       {/* Projects Section */}
       <section 
-        ref={sectionRefs.projects} 
+        ref={sectionRefs.projects}
         id="projects" 
         className="min-h-screen py-20 px-4 md:px-8"
       >
@@ -136,7 +152,7 @@ export default function HomePage() {
 
       {/* Interactive Games Section */}
       <section 
-        ref={sectionRefs.games} 
+        ref={sectionRefs.games}
         id="games" 
         className="py-20 px-4 md:px-8 bg-black/30"
       >
@@ -189,7 +205,7 @@ export default function HomePage() {
 
       {/* Blog Section */}
       <section 
-        ref={sectionRefs.blog} 
+        ref={sectionRefs.blog}
         id="blog" 
         className="min-h-screen py-20 px-4 md:px-8"
       >
@@ -198,7 +214,7 @@ export default function HomePage() {
 
       {/* YouTube Section */}
       <section 
-        ref={sectionRefs.youtube} 
+        ref={sectionRefs.youtube}
         id="youtube" 
         className="min-h-screen py-20 px-4 md:px-8 bg-black/30"
       >
@@ -207,7 +223,7 @@ export default function HomePage() {
 
       {/* Contact Section */}
       <section 
-        ref={sectionRefs.contact} 
+        ref={sectionRefs.contact}
         id="contact" 
         className="min-h-screen py-20 px-4 md:px-8"
       >
