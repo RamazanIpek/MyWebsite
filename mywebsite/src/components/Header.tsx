@@ -1,152 +1,235 @@
-// src/components/Header.tsx
+/* ───────────────────────────────────────────── */
+/*  src/components/Header.tsx                    */
+/* ───────────────────────────────────────────── */
 "use client";
-import { useState, useEffect, MutableRefObject } from 'react';
-import Link from 'next/link';
 
-// Update the interface to match the types from page.tsx
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+
+// SectionName tipini ortak types dosyasından import edelim
+import type { SectionName } from "@/types";
+
 interface HeaderProps {
-  activeSection: string;
-  sectionRefs: {
-    [key: string]: MutableRefObject<HTMLDivElement | null>;
-  };
+  activeSection: SectionName;
+  scrollToSection: (section: SectionName) => void;
 }
 
-export default function Header({ activeSection, sectionRefs }: HeaderProps) {
+export default function Header({ activeSection, scrollToSection }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Navbar'ın scroll'a göre stilini değiştirelim
   useEffect(() => {
+    // Mobil cihaz kontrolü
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    // İlk yüklemede kontrol et
+    checkIfMobile();
+    
+    // Pencere boyutu değiştiğinde kontrol et
+    window.addEventListener("resize", checkIfMobile);
+    
+    // Scroll kontrolü
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
+      const scrollPosition = window.scrollY;
+      if (scrollPosition > 50) {
+        setIsScrolled(true);
+      } else {
+        setIsScrolled(false);
+      }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", checkIfMobile);
+    };
   }, []);
 
-  // Bölümlere smooth scroll için
-  const scrollToSection = (sectionId: string) => {
-    setIsMobileMenuOpen(false);
-    sectionRefs[sectionId]?.current?.scrollIntoView({ behavior: 'smooth' });
+  // Navbar menü öğeleri
+  const navItems: {id: SectionName; label: string}[] = [
+    { id: "home", label: "Ana Sayfa" },
+    { id: "about", label: "Hakkımda" },
+    { id: "skills", label: "Yetenekler" },
+    { id: "projects", label: "Projeler" },
+    { id: "blog", label: "Blog" },
+    { id: "youtube", label: "YouTube" },
+    { id: "contact", label: "İletişim" },
+  ];
+
+  // Mobil menü geçiş animasyonları
+  const menuVariants = {
+    closed: {
+      height: 0,
+      opacity: 0,
+      transition: {
+        duration: 0.3,
+        when: "afterChildren",
+        staggerChildren: 0.05,
+        staggerDirection: -1,
+      },
+    },
+    open: {
+      height: "auto",
+      opacity: 1,
+      transition: {
+        duration: 0.3,
+        when: "beforeChildren",
+        staggerChildren: 0.05,
+        staggerDirection: 1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    closed: { opacity: 0, y: -10 },
+    open: { opacity: 1, y: 0 },
   };
 
   return (
-    <header 
-      className={`fixed top-0 left-0 w-full z-50 transition-all duration-300 ${
-        isScrolled 
-          ? 'bg-black/80 backdrop-blur-lg py-4' 
-          : 'bg-transparent py-6'
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        isScrolled
+          ? "bg-gray-900/85 backdrop-blur-md py-3 shadow-lg shadow-black/20"
+          : "bg-transparent py-5"
       }`}
     >
-      <div className="container mx-auto px-4 md:px-8 flex justify-between items-center">
-        <a 
-          href="#home"
-          onClick={(e) => {
-            e.preventDefault();
-            scrollToSection('home');
-          }}
-          className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-500 text-transparent bg-clip-text"
-        >
-          Ramazan İpek
-        </a>
+      <div className="container mx-auto px-4 md:px-8">
+        <nav className="flex items-center justify-between">
+          {/* Logo */}
+          <div className="flex items-center z-20">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-white font-bold text-xl">
+              R
+            </div>
+            <span className="ml-3 text-xl font-bold bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 text-transparent bg-clip-text">
+              Ramazan İpek
+            </span>
+          </div>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden md:block">
-          <ul className="flex space-x-8">
-            {[
-              { id: 'about', label: 'Hakkımda' },
-              { id: 'skills', label: 'Yetenekler' },
-              { id: 'projects', label: 'Projeler' },
-              { id: 'games', label: 'Oyunlar' },
-              { id: 'blog', label: 'Blog' },
-              { id: 'youtube', label: 'YouTube' },
-              { id: 'contact', label: 'İletişim' },
-            ].map((item) => (
-              <li key={item.id}>
-                <a
-                  href={`#${item.id}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    scrollToSection(item.id);
-                  }}
-                  className={`${
-                    activeSection === item.id
-                      ? 'text-purple-400 font-medium'
-                      : 'text-gray-300 hover:text-white'
-                  } transition-colors duration-300`}
-                >
-                  {item.label}
-                </a>
-              </li>
+          {/* Desktop Menu */}
+          <div className="hidden md:flex items-center space-x-1">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => scrollToSection(item.id)}
+                className={`relative px-4 py-2 rounded-lg text-sm transition-colors ${
+                  activeSection === item.id
+                    ? "text-white"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                {item.label}
+                {activeSection === item.id && (
+                  <motion.div
+                    layoutId="activeSection"
+                    className="absolute inset-0 bg-gray-800/60 -z-10 rounded-lg"
+                    initial={false}
+                    transition={{ type: "spring", duration: 0.5 }}
+                  />
+                )}
+              </button>
             ))}
-          </ul>
-        </nav>
+          </div>
 
-        {/* Mobile Menu Button */}
-        <button
-          className="md:hidden text-white focus:outline-none"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            xmlns="http://www.w3.org/2000/svg"
+          {/* CTA Button (only on desktop) */}
+          <div className="hidden md:block">
+            <motion.button
+              onClick={() => scrollToSection("contact")}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 
+                        text-white px-5 py-2 rounded-full shadow-lg shadow-purple-900/30"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              Bana Ulaşın
+            </motion.button>
+          </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            className="md:hidden z-20 p-2"
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            aria-label={isMenuOpen ? "Menüyü kapat" : "Menüyü aç"}
           >
-            {isMobileMenuOpen ? (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
+            <div className="w-6 flex flex-col items-end justify-center gap-1.5">
+              <motion.span
+                animate={{
+                  rotate: isMenuOpen ? 45 : 0,
+                  y: isMenuOpen ? 8 : 0,
+                  width: isMenuOpen ? "24px" : "24px",
+                }}
+                className="h-0.5 bg-white block"
               />
-            ) : (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
+              <motion.span
+                animate={{
+                  opacity: isMenuOpen ? 0 : 1,
+                  width: "16px",
+                }}
+                className="h-0.5 bg-white block"
               />
-            )}
-          </svg>
-        </button>
+              <motion.span
+                animate={{
+                  rotate: isMenuOpen ? -45 : 0,
+                  y: isMenuOpen ? -8 : 0,
+                  width: isMenuOpen ? "24px" : "20px",
+                }}
+                className="h-0.5 bg-white block"
+              />
+            </div>
+          </button>
+        </nav>
       </div>
 
-      {/* Mobile Navigation */}
-      {isMobileMenuOpen && (
-        <nav className="md:hidden bg-gray-900/95 backdrop-blur-lg">
-          <ul className="py-4 px-4">
-            {[
-              { id: 'about', label: 'Hakkımda' },
-              { id: 'skills', label: 'Yetenekler' },
-              { id: 'projects', label: 'Projeler' },
-              { id: 'games', label: 'Oyunlar' },
-              { id: 'blog', label: 'Blog' },
-              { id: 'youtube', label: 'YouTube' },
-              { id: 'contact', label: 'İletişim' },
-            ].map((item) => (
-              <li key={item.id} className="mb-4">
-                <a
-                  href={`#${item.id}`}
-                  onClick={(e) => {
-                    e.preventDefault();
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {isMenuOpen && isMobile && (
+          <motion.div
+            initial="closed"
+            animate="open"
+            exit="closed"
+            variants={menuVariants}
+            className="md:hidden absolute top-full left-0 right-0 bg-gray-900/95 backdrop-blur-lg overflow-hidden"
+          >
+            <div className="container mx-auto px-4 py-2">
+              {navItems.map((item) => (
+                <motion.button
+                  key={item.id}
+                  variants={itemVariants}
+                  onClick={() => {
                     scrollToSection(item.id);
+                    setIsMenuOpen(false);
                   }}
-                  className={`block py-2 ${
+                  className={`block w-full text-left py-4 border-b border-gray-800 ${
                     activeSection === item.id
-                      ? 'text-purple-400 font-medium'
-                      : 'text-gray-300'
+                      ? "text-white font-medium"
+                      : "text-gray-400"
                   }`}
                 >
                   {item.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      )}
+                </motion.button>
+              ))}
+              
+              <motion.div
+                variants={itemVariants}
+                className="py-5"
+              >
+                <button
+                  onClick={() => {
+                    scrollToSection("contact");
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 rounded-lg"
+                >
+                  Bana Ulaşın
+                </button>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }

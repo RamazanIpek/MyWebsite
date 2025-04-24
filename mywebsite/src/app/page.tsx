@@ -1,234 +1,161 @@
-// src/app/page.tsx
+/* ──────────────────────────────────────────── */
+/* src/app/page.tsx                           */
+/* ──────────────────────────────────────────── */
 "use client";
-import { useRef, useState, useEffect, MutableRefObject } from 'react';
-import dynamic from 'next/dynamic';
-import Header from '@/components/Header';
-import About from '@/components/About';
-import Skills from '@/components/Skills';
-import Projects from '@/components/Projects';
-import Blog from '@/components/Blog';
-import YouTube from '@/components/YouTube';
-import Contact from '@/components/Contact';
 
-// Bir section ref map türü tanımlayalım
-type SectionName = 'home' | 'about' | 'skills' | 'projects' | 'games' | 'blog' | 'youtube' | 'contact';
-type SectionRefs = {
-  [key in SectionName]: MutableRefObject<HTMLDivElement | null>;
-};
+// Gerekli tüm importlar
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  MutableRefObject,
+} from "react";
+import dynamic from "next/dynamic";
+import { motion, AnimatePresence } from "framer-motion";
+import throttle from "lodash/throttle";
 
-// 3D oyunları dinamik olarak yükleyelim
-const AirHockeyGame = dynamic(() => import('@/components/games/AirHockey'), { 
-  ssr: false,
-  loading: () => <div className="flex justify-center items-center min-h-[300px]">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+/* ---------- Alt bileşenler ---------- */
+import Header             from "@/components/Header";
+import About              from "@/components/About";
+import Skills             from "@/components/Skills";
+import Projects           from "@/components/Projects";
+import Blog               from "@/components/Blog";
+import YouTube            from "@/components/YouTube";
+import Contact            from "@/components/Contact";
+import AnimatedBackground from "@/components/AnimatedBackground"; // Bu bileşenin isActive prop'unu aldığını varsayıyoruz
+import FloatingGameSection from "@/components/FloatingGameSection";
+
+/* ---------- Lazy-load mini oyunlar ---------- */
+const Spinner = (c: string) => (
+  <div className="flex justify-center items-center min-h-[300px] aspect-video">
+    <div className={`animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 ${c}`} />
   </div>
-});
+);
+const AirHockeyGame  = dynamic(() => import("@/components/games/AirHockey"),  { ssr:false, loading:() => Spinner("border-purple-500") });
+const SoccerGame     = dynamic(() => import("@/components/games/Soccer"),     { ssr:false, loading:() => Spinner("border-blue-500")   });
+const BasketballGame = dynamic(() => import("@/components/games/Basketball"), { ssr:false, loading:() => Spinner("border-orange-500") });
+const CarGame        = dynamic(() => import("@/components/games/CarGame"),    { ssr:false, loading:() => Spinner("border-red-500")    });
 
-const SoccerGame = dynamic(() => import('@/components/games/Soccer'), { 
-  ssr: false,
-  loading: () => <div className="flex justify-center items-center min-h-[300px]">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-  </div>
-});
+/* ---------- Tipler ---------- */
+type SectionName = 'home' | 'about' | 'skills' | 'projects' | 'blog' | 'youtube' | 'contact';
+type SectionRefs = { [K in SectionName]: MutableRefObject<HTMLDivElement | null> };
 
-const BasketballGame = dynamic(() => import('@/components/games/Basketball'), { 
-  ssr: false,
-  loading: () => <div className="flex justify-center items-center min-h-[300px]">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
-  </div>
-});
+/* ---------- Ortak Section Bileşeni ---------- */
+const Section = React.forwardRef<
+  HTMLDivElement,
+  { id: SectionName; className?: string; children: React.ReactNode }
+>(({ id, className = "", children }, ref) => (
+  <motion.section
+    ref={ref} id={id}
+    className={`min-h-[85vh] py-20 px-4 md:px-8 flex flex-col items-center justify-center relative overflow-hidden snap-start ${className}`}
+    initial={{ opacity: 0, y: 50 }} whileInView={{ opacity: 1, y: 0 }}
+    viewport={{ once: true, amount: 0.25 }} transition={{ duration: 0.6 }}
+  >
+    <div className="w-full max-w-5xl">{children}</div>
+  </motion.section>
+));
+Section.displayName = "Section";
 
-const CarGame = dynamic(() => import('@/components/games/CarGame'), { 
-  ssr: false,
-  loading: () => <div className="flex justify-center items-center min-h-[300px]">
-    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500"></div>
-  </div> 
-});
-
+/* ──────────────────────────────────────────── */
+/* Ana Sayfa Bileşeni                           */
+/* ──────────────────────────────────────────── */
 export default function HomePage() {
-  const [activeSection, setActiveSection] = useState<SectionName>('home');
-  
-  // Referansları doğru tiplerle oluşturalım
-  const sectionRefs: SectionRefs = {
-    home: useRef<HTMLDivElement>(null),
-    about: useRef<HTMLDivElement>(null),
-    skills: useRef<HTMLDivElement>(null),
-    projects: useRef<HTMLDivElement>(null),
-    games: useRef<HTMLDivElement>(null),
-    blog: useRef<HTMLDivElement>(null),
-    youtube: useRef<HTMLDivElement>(null),
-    contact: useRef<HTMLDivElement>(null)
-  };
+  /* State */
+  const [activeSection, setActiveSection] = useState<SectionName>("home");
+  const [isBackgroundActive, setIsBackgroundActive] = useState(true);
 
-  // Scroll pozisyonuna göre aktif bölümü belirleyelim
-  useEffect(() => {
-    const handleScroll = () => {
-      const scrollPosition = window.scrollY + 200;
+  /* Refs */
+  const refs: SectionRefs = { home: useRef(null), about: useRef(null), skills: useRef(null), projects: useRef(null), blog: useRef(null), youtube: useRef(null), contact: useRef(null), };
 
-      // Object.entries ile güvenli bir şekilde objeyi döngüye alalım
-      Object.entries(sectionRefs).forEach(([section, ref]) => {
-        const element = ref.current;
-        if (!element) return;
-
-        const offsetTop = element.offsetTop;
-        const offsetHeight = element.offsetHeight;
-
-        if (
-          scrollPosition >= offsetTop &&
-          scrollPosition < offsetTop + offsetHeight
-        ) {
-          setActiveSection(section as SectionName);
-        }
-      });
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  // Null kontrolü ile güvenli bir scrollIntoView fonksiyonu
-  const scrollToSection = (sectionName: SectionName) => {
-    const section = sectionRefs[sectionName].current;
-    if (section) {
-      section.scrollIntoView({ behavior: 'smooth' });
+  /* Aktif bölüm tespiti ve Arka Plan kontrolü */
+  const handleScroll = useCallback(() => {
+    const pos = window.scrollY + window.innerHeight * 0.35;
+    let currentSection: SectionName = "home";
+    for (const key in refs) {
+        const sectionName = key as SectionName; const ref = refs[sectionName]; const el = ref.current; if (!el) continue;
+        if (sectionName === 'home' && pos < el.offsetTop + el.offsetHeight * 0.5) { currentSection = 'home'; break; }
+        if (pos >= el.offsetTop - window.innerHeight * 0.4 && pos < el.offsetTop + el.offsetHeight - window.innerHeight * 0.4) { currentSection = sectionName; break; }
     }
-  };
+    if (currentSection === 'home' && refs.home.current && window.scrollY > refs.home.current.offsetHeight * 0.5) { currentSection = 'about'; }
+    setActiveSection(currentSection);
 
+    const homeElement = refs.home.current;
+    if (homeElement) { const rect = homeElement.getBoundingClientRect(); const shouldBeActive = rect.bottom > window.innerHeight * 0.1; setIsBackgroundActive(shouldBeActive); }
+    else { setIsBackgroundActive(true); }
+  }, [refs]);
+
+  const throttledScrollHandler = useMemo(() => throttle(handleScroll, 150), [handleScroll]);
+
+  /* Scroll listener */
+  useEffect(() => {
+    handleScroll(); window.addEventListener("scroll", throttledScrollHandler, { passive: true });
+    return () => { window.removeEventListener("scroll", throttledScrollHandler); throttledScrollHandler.cancel(); }
+  }, [throttledScrollHandler, handleScroll]);
+
+  /* Smooth scroll fonksiyonu */
+  const scrollToSection = (sectionName: SectionName) => { refs[sectionName].current?.scrollIntoView({ behavior: "smooth", block: "start" }); }
+
+  /* ───────────────────────── JSX ───────────────────────── */
   return (
-    <div className="bg-gradient-to-b from-gray-900 to-black text-white">
-      <Header activeSection={activeSection} sectionRefs={sectionRefs} />
-      
-      {/* Hero Section */}
-      <section 
-        ref={sectionRefs.home}
-        id="home" 
-        className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden"
-      >
-        <div className="z-10 text-center px-4 md:px-8 max-w-6xl">
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 text-transparent bg-clip-text">
-            Ramazan İpek
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-300 mb-8">
-            VR & Mobil Uygulama Geliştirici | İçerik Üreticisi
-          </p>
-          <button 
-            onClick={() => scrollToSection('about')}
-            className="px-8 py-3 border border-purple-500 rounded-full text-white hover:bg-purple-500 transition duration-300"
-          >
-            Keşfet
-          </button>
-        </div>
-        <div className="absolute inset-0 z-0">
-          {/* Arka plan animasyonu buraya gelecek */}
-        </div>
-      </section>
+    <div className="bg-gradient-to-b from-gray-900 to-black text-white overflow-x-hidden antialiased">
+      <Header activeSection={activeSection} scrollToSection={scrollToSection} />
 
-      {/* About Section */}
-      <section 
-        ref={sectionRefs.about}
-        id="about" 
-        className="min-h-screen py-20 px-4 md:px-8"
-      >
-        <About />
-      </section>
+      {/* AnimatePresence ile Arka Plan Geçişi */}
+      {/* *** DÜZELTME BURADA: AnimatedBackground sadece isBackgroundActive true ise render edilecek *** */}
+      <AnimatePresence mode="wait">
+        {isBackgroundActive && (
+          // AnimatedBackground'un kendisi zaten bir motion.div ise
+          // dış sarmalayıcıya gerek yok. Değilse, önceki gibi
+          // bir motion.div ile sarmalanabilir.
+          // AnimatedBackground'un 'isActive' prop'unu alıp
+          // kendi animasyonlarını/render döngüsünü yönettiğini varsayıyoruz.
+          <AnimatedBackground key="animated-background" isActive={isBackgroundActive} />
+        )}
+      </AnimatePresence>
 
-      {/* Skills Section */}
-      <section 
-        ref={sectionRefs.skills}
-        id="skills" 
-        className="min-h-screen py-20 px-4 md:px-8 bg-black/30"
-      >
-        <Skills />
-      </section>
+      {/* Ana İçerik */}
+      <main className="relative z-[5]">
+        {/* HOME Bölümü */}
+        <section ref={refs.home} id="home" className="min-h-screen h-screen flex flex-col items-center justify-center relative overflow-hidden snap-start">
+          <motion.div className="z-10 text-center px-4 md:px-8 max-w-5xl" initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.1 }}>
+            <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 text-transparent bg-clip-text"> Ramazan İpek </h1>
+            <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto"> VR & Mobil Uygulama Geliştirici | İçerik Üreticisi </p>
+            <motion.button onClick={() => scrollToSection("about")} className="px-8 py-3 border border-purple-500 rounded-full hover:bg-purple-500 transition-colors duration-300" whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}> Keşfet </motion.button>
+          </motion.div>
+        </section>
 
-      {/* Projects Section */}
-      <section 
-        ref={sectionRefs.projects}
-        id="projects" 
-        className="min-h-screen py-20 px-4 md:px-8"
-      >
-        <Projects />
-      </section>
+        {/* ABOUT Bölümü */}
+        <Section ref={refs.about} id="about"><About /></Section>
 
-      {/* Interactive Games Section */}
-      <section 
-        ref={sectionRefs.games}
-        id="games" 
-        className="py-20 px-4 md:px-8 bg-black/30"
-      >
-        <h2 className="text-4xl md:text-5xl font-bold mb-16 text-center">
-          İnteraktif <span className="text-purple-500">Oyunlar</span>
-        </h2>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 max-w-7xl mx-auto">
-          <div className="bg-gray-900/60 rounded-xl overflow-hidden shadow-xl">
-            <div className="p-4 mb-4">
-              <h3 className="text-2xl font-bold text-purple-400">Hava Hokeyi</h3>
-              <p className="text-gray-400">Hadi bir hava hokeyi maçı yapalım!</p>
-            </div>
-            <div className="h-[400px] relative">
-              <AirHockeyGame />
-            </div>
-          </div>
-          
-          <div className="bg-gray-900/60 rounded-xl overflow-hidden shadow-xl">
-            <div className="p-4 mb-4">
-              <h3 className="text-2xl font-bold text-blue-400">Kaleye Şut</h3>
-              <p className="text-gray-400">Kaleye şut çekme becerinizi test edin!</p>
-            </div>
-            <div className="h-[400px] relative">
-              <SoccerGame />
-            </div>
-          </div>
-          
-          <div className="bg-gray-900/60 rounded-xl overflow-hidden shadow-xl">
-            <div className="p-4 mb-4">
-              <h3 className="text-2xl font-bold text-orange-400">Basket Atma</h3>
-              <p className="text-gray-400">Ne kadar basketbolcu olduğunuzu görelim!</p>
-            </div>
-            <div className="h-[400px] relative">
-              <BasketballGame />
-            </div>
-          </div>
-          
-          <div className="bg-gray-900/60 rounded-xl overflow-hidden shadow-xl">
-            <div className="p-4 mb-4">
-              <h3 className="text-2xl font-bold text-red-400">Araba Sürme</h3>
-              <p className="text-gray-400">3D dünyada araba sürme deneyimi</p>
-            </div>
-            <div className="h-[400px] relative">
-              <CarGame />
-            </div>
-          </div>
-        </div>
-      </section>
+        {/* Oyun 1: Hava Hokeyi */}
+        <FloatingGameSection title="Hava Hokeyi Challenge" description="Hızlı reflekslerinizi test edin..." color="purple" gameComponent={<AirHockeyGame />} align="left" placeholderImageUrl="/images/air-hockey-photo.jpg" />
 
-      {/* Blog Section */}
-      <section 
-        ref={sectionRefs.blog}
-        id="blog" 
-        className="min-h-screen py-20 px-4 md:px-8"
-      >
-        <Blog />
-      </section>
+        {/* SKILLS Bölümü */}
+        <Section ref={refs.skills} id="skills" className="bg-black/30"> <Skills /> </Section>
 
-      {/* YouTube Section */}
-      <section 
-        ref={sectionRefs.youtube}
-        id="youtube" 
-        className="min-h-screen py-20 px-4 md:px-8 bg-black/30"
-      >
-        <YouTube />
-      </section>
+        {/* Oyun 2: Futbol */}
+        <FloatingGameSection title="Kaleye Şut Challenge" description="Açı ve güç kontrolüyle..." color="blue" gameComponent={<SoccerGame />} align="right" placeholderImageUrl="/images/soccer-photo.jpg" />
 
-      {/* Contact Section */}
-      <section 
-        ref={sectionRefs.contact}
-        id="contact" 
-        className="min-h-screen py-20 px-4 md:px-8"
-      >
-        <Contact />
-      </section>
+        {/* PROJECTS Bölümü */}
+        <Section ref={refs.projects} id="projects"><Projects /></Section>
+
+        {/* Oyun 3: Basketbol */}
+        <FloatingGameSection title="Basket Atma Challenge" description="Doğru zamanlama ve isabetli atışlarla..." color="orange" gameComponent={<BasketballGame />} align="left" placeholderImageUrl="/images/basketball-photo.jpg" />
+
+        {/* BLOG Bölümü */}
+        <Section ref={refs.blog} id="blog"><Blog /></Section>
+
+        {/* Oyun 4: Araba */}
+        <FloatingGameSection title="Araba Sürme Simülasyonu" description="Engellere çarpmadan en yüksek skoru..." color="red" gameComponent={<CarGame />} align="right" placeholderImageUrl="/images/car-game-photo.jpg" />
+
+        {/* YOUTUBE Bölümü */}
+        <Section ref={refs.youtube} id="youtube" className="bg-black/30"> <YouTube /> </Section>
+
+        {/* CONTACT Bölümü */}
+        <Section ref={refs.contact} id="contact"><Contact /></Section>
+      </main>
     </div>
   );
 }
